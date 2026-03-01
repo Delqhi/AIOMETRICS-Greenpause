@@ -1,0 +1,193 @@
+openapi: 3.1.0
+info:
+  title: Greenpause Reminder API
+  version: 0.1.0-greenpause
+  summary: Contract-first API for reminder lifecycle management.
+servers:
+  - url: https://api.greenpause.local
+security:
+  - BearerAuth: []
+tags:
+  - name: Reminders
+paths:
+  /v1/reminders:
+    post:
+      tags: [Reminders]
+      operationId: CreateReminder
+      summary: Create a new reminder.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReminderRequest'
+      responses:
+        '201':
+          description: Reminder created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateReminderResponse'
+        '400':
+          description: Validation error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized.
+  /v1/reminders/{ReminderId}:
+    get:
+      tags: [Reminders]
+      operationId: GetReminderById
+      summary: Get a reminder by identifier.
+      parameters:
+        - $ref: '#/components/parameters/ReminderId'
+      responses:
+        '200':
+          description: Reminder found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetReminderResponse'
+        '404':
+          description: Reminder not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Reminders]
+      operationId: UpdateReminderStatus
+      summary: Update reminder status (cancel or acknowledge).
+      parameters:
+        - $ref: '#/components/parameters/ReminderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReminderRequest'
+      responses:
+        '200':
+          description: Reminder updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderItem'
+        '409':
+          description: Invalid state transition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ReminderId:
+      name: ReminderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    CreateReminderRequest:
+      type: object
+      required: [TenantId, UserId, DueAtUtc, Message]
+      properties:
+        TenantId:
+          type: string
+          minLength: 3
+          maxLength: 64
+        UserId:
+          type: string
+          minLength: 3
+          maxLength: 64
+        DueAtUtc:
+          type: string
+          format: date-time
+        Message:
+          type: string
+          minLength: 1
+          maxLength: 1024
+        Channel:
+          $ref: '#/components/schemas/ReminderChannel'
+    CreateReminderResponse:
+      type: object
+      required: [ReminderId, Reminder]
+      properties:
+        ReminderId:
+          type: string
+          format: uuid
+        Reminder:
+          $ref: '#/components/schemas/ReminderItem'
+    GetReminderResponse:
+      type: object
+      required: [Reminder]
+      properties:
+        Reminder:
+          $ref: '#/components/schemas/ReminderItem'
+    UpdateReminderRequest:
+      type: object
+      required: [Action]
+      properties:
+        Action:
+          type: string
+          enum: [Cancel, Acknowledge]
+    ReminderItem:
+      type: object
+      required:
+        - ReminderId
+        - TenantId
+        - UserId
+        - DueAtUtc
+        - ReminderStatus
+        - CreatedAtUtc
+      properties:
+        ReminderId:
+          type: string
+          format: uuid
+        TenantId:
+          type: string
+        UserId:
+          type: string
+        DueAtUtc:
+          type: string
+          format: date-time
+        SnoozeUntilUtc:
+          type: string
+          format: date-time
+          nullable: true
+        ReminderStatus:
+          $ref: '#/components/schemas/ReminderStatus'
+        ReminderChannel:
+          $ref: '#/components/schemas/ReminderChannel'
+        Message:
+          type: string
+        CreatedAtUtc:
+          type: string
+          format: date-time
+        UpdatedAtUtc:
+          type: string
+          format: date-time
+    ReminderStatus:
+      type: string
+      enum: [Scheduled, Triggered, Acknowledged, Canceled]
+    ReminderChannel:
+      type: string
+      enum: [Email, Sms, Push]
+    ErrorResponse:
+      type: object
+      required: [ErrorCode, ErrorMessage]
+      properties:
+        ErrorCode:
+          type: string
+        ErrorMessage:
+          type: string
+        CorrelationId:
+          type: string
