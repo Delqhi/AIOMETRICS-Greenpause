@@ -17,6 +17,7 @@ jobs:
       NLM_GATE_MODULE: CoreModule
       NLM_GATE_WORKFLOW: LoginFlow
       NLM_ENFORCE_STANDARDS_FRESHNESS: "1"
+      NLM_ALLOW_AUTH_FAILURE: "1"
       NOTEBOOKLM_COOKIES: ${{ secrets.NOTEBOOKLM_COOKIES }}
     steps:
       - name: Checkout

@@ -8,6 +8,8 @@ MIN_CITATIONS="${NLM_MIN_CITATIONS:-1}"
 MODULE="${NLM_GATE_MODULE:-CoreModule}"
 WORKFLOW="${NLM_GATE_WORKFLOW:-LoginFlow}"
 ENFORCE_STANDARDS_FRESHNESS="${NLM_ENFORCE_STANDARDS_FRESHNESS:-1}"
+ALLOW_AUTH_FAILURE="${NLM_ALLOW_AUTH_FAILURE:-0}"
+AUTH_SKIPPED=0
 
 usage() {
   cat <<'USAGE'
@@ -19,6 +21,7 @@ Environment:
   NLM_GATE_MODULE     Default module if --module not provided
   NLM_GATE_WORKFLOW   Default workflow if --workflow not provided
   NLM_ENFORCE_STANDARDS_FRESHNESS  Run standards freshness check first (default: 1)
+  NLM_ALLOW_AUTH_FAILURE  Treat NotebookLM auth errors as skip (default: 0)
 USAGE
 }
 
@@ -70,6 +73,11 @@ run_gate() {
   trap 'rm -f "$out"' RETURN
 
   if ! "$QUERY_SCRIPT" "$mode" "$arg" >"$out" 2>&1; then
+    if [ "$ALLOW_AUTH_FAILURE" = "1" ] && rg -qi 'Authentication expired|Run `nlm login`|Profile .+ not found' "$out"; then
+      echo "[gate:$mode] SKIP auth_unavailable"
+      AUTH_SKIPPED=1
+      return 0
+    fi
     echo "[gate:$mode] FAILED" >&2
     sed -n '1,120p' "$out" >&2 || true
     return 1
@@ -96,6 +104,7 @@ echo "Judge preflight gate"
 echo "module=$MODULE"
 echo "workflow=$WORKFLOW"
 echo "min_citations=$MIN_CITATIONS"
+echo "allow_auth_failure=$ALLOW_AUTH_FAILURE"
 
 if [ "$ENFORCE_STANDARDS_FRESHNESS" = "1" ]; then
   echo "enforce_standards_freshness=1"
@@ -107,5 +116,10 @@ fi
 run_gate rules "$MODULE"
 run_gate next "$MODULE"
 run_gate browser "$WORKFLOW"
+
+if [ "$AUTH_SKIPPED" = "1" ]; then
+  echo "Judge preflight gate skipped due to auth_unavailable (allowed by NLM_ALLOW_AUTH_FAILURE=1)."
+  exit 0
+fi
 
 echo "All judge gates passed."
